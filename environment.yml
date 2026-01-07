@@ -1,0 +1,17 @@
+name: pi
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - requests
+  - sqlalchemy
+  - python-dotenv
+  - pandas
+  - numpy
+  - fastparquet
+  - pyarrow == 20.0.0
+  - funcy
+  - tqdm
+  - httpx
+  - jupyter
