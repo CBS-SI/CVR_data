@@ -13,9 +13,9 @@ This is a very preliminary version of **our** CVR data documentation. The offici
 
 ## 1. Company Data (`virksomhed`)
 
-Script: `virksomhed_data_api_call.py`
-Endpoint: `http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
-Data files: `virksomhed_*_*.parquet`
+- Script: `virksomhed_data_api_call.py`
+- Endpoint: `http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
+- Data files: `virksomhed_*_*.parquet`
 
 Please notice that the `virksomhed_*_*.parquet` files contain the complete history of the companies as of that year.
 
@@ -52,9 +52,9 @@ Doing the API call via the python script in panel mode 11 `.parquet` files will 
 
 ## 2. Financial Statements (`offentliggoerelser`)
 
-Script: `financial_statements_api_call.py`
-Endpoint: `http://distribution.virk.dk/offentliggoerelser/_search`
-Data files: `financial_statements_*.parquet`
+- Script: `financial_statements_api_call.py`
+- Endpoint: `http://distribution.virk.dk/offentliggoerelser/_search`
+- Data files: `financial_statements_*.parquet`
 
 Contains the companies submitted a financial statement for a given year.
 
@@ -75,9 +75,9 @@ python financial_statements_api_call.py --years 2020 --format "json"
 
 ## Expanded Financial Statements
 
-Script: `individual_statements_api_call.py`
-Endpoint: None/Shut down
-Data files: `companies_all_tags_*.parquet.parquet`
+- Script: `individual_statements_api_call.py`
+- Endpoint: None/Shut down
+- Data files: `companies_all_tags_*.parquet.parquet`
 
 It expands the `.xml` information in the financial statements into a readable table format. Revenue, Total Assets, etc for a given year.
 
