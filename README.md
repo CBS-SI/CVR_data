@@ -1,8 +1,8 @@
 # CVR DATA
 
-Work in progress.
+🚧 Work in progress 🚧
 
-This is a very preliminary version of **our** CVR data documentation. The official documentation is very scarce, lacking, and in Danish. We are working on this repository to create a more comprehensive and accessible documentation for the CVR data.
+This is a very preliminary version of our (not official) CVR data documentation. The official documentation is very scarce, lacking, and in Danish. We are working on this repository to create a more comprehensive and accessible documentation for the CVR data.
 
 ## Helpful Resources
 
@@ -13,7 +13,7 @@ This is a very preliminary version of **our** CVR data documentation. The offici
 
 ## 1. Company Data (`virksomhed`)
 
-- Script: `virksomhed_data_api_call.py`
+- Script: `src/virksomhed_data_api_call.py`
 - Endpoint: `http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
 - Data files: `virksomhed_*_*.parquet`
 
@@ -34,7 +34,7 @@ python virksomhed_api_call.py --year 2018 --format "parquet"
 python virksomhed_api_call.py --year 2018 --format "json" --mode "panel"
 ```
 
-### Company Data Structure (`virksomhed`)
+#### Company Data Structure (`virksomhed`)
 
 Doing the API call via the python script in panel mode 11 `.parquet` files will be generated (e.g. `virksomhed_api_call.py --year 2018 --mode "panel"`)
 
@@ -43,16 +43,16 @@ Doing the API call via the python script in panel mode 11 `.parquet` files will 
 3. **virksomhed_YYYY_binavne.parquet** - Secondary names with validity periods
 4. **virksomhed_YYYY_addresses.parquet** - Addresses with validity periods
 5. **virksomhed_YYYY_hovedbranche.parquet** - Main industry branch with validity periods
-6. **virksomhed_YYYY_bibranche1/2/3.parquet** - Secondary branches
-7. **virksomhed_YYYY_aarsbeskaeftigelse.parquet** - Annual employment data
-8. **virksomhed_YYYY_kvartalsbeskaeftigelse.parquet** - Quarterly employment data
+6. **virksomhed_YYYY_bibranche1.parquet** - Secondary company branches
+7. **virksomhed_YYYY_bibranche2.parquet** - Secondary company branches
+8. **virksomhed_YYYY_bibranche3.parquet** - Secondary company branches
 9. **virksomhed_YYYY_maanedsbeskaeftigelse.parquet** - Monthly employment data
-10.
-11.
+10. **virksomhed_YYYY_kvartalsbeskaeftigelse.parquet** - Quarterly employment data
+11. **virksomhed_YYYY_aarsbeskaeftigelse.parquet** - Annual employment data
 
 ## 2. Financial Statements (`offentliggoerelser`)
 
-- Script: `financial_statements_api_call.py`
+- Script: `src/financial_statements_api_call.py`
 - Endpoint: `http://distribution.virk.dk/offentliggoerelser/_search`
 - Data files: `financial_statements_*.parquet`
 
@@ -73,9 +73,9 @@ python financial_statements_api_call.py --years 2018 2020
 python financial_statements_api_call.py --years 2020 --format "json"
 ```
 
-## Expanded Financial Statements
+## 3. Expanded Financial Statements
 
-- Script: `individual_statements_api_call.py`
+- Script: `src/individual_statements_api_call.py`
 - Endpoint: None/Shut down
 - Data files: `companies_all_tags_*.parquet.parquet`
 
