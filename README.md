@@ -1,5 +1,7 @@
 # Danish Central Business Register Data - English Documentation and Scripts
 
+![cover](images/cover.png)
+
 ## What ?
 
 - A preliminary **non-official** data documentation for Centralt Virksomhedsregister (CVR) data - or Central Business Register in English.
@@ -9,10 +11,12 @@ For the official API documentation please go to: [https://datacvr.virk.dk/artike
 
 ## Why?
 
-- Official CVR documentation is in Danish, making it not accesible for international researchers.
-- Official CVR documentation is lacking of very basic features (e.g. description of the schema and fields).
-- Official CVR documentation is barebones (e.g. lacks any hands-on examples).
-- Official CVR documentation does not focus on mass downloads (e.g. *get all active companies in Denmark, all fields*)
+The Official CVR documentation:
+
+- Is in Danish, making it not accesible for international researchers.
+- Lacks of  basic features (e.g. description of the schema and fields).
+- Is barebones (e.g. no hands-on examples).
+- Does not focus on mass downloads for research purposes (e.g. *get all active companies in Denmark, all fields*)
 
 ## Do you have access to Statistics Denmark ?
 
