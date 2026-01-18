@@ -30,7 +30,7 @@ python virksomhed_api_call.py --year 2018 --format "json" --mode "panel"
 
 Doing the API call via the python script in panel mode 22 `.parquet` files will be generated (e.g. `virksomhed_api_call.py --year 2018 --mode "panel"`)
 
-1. **virksomhed_YYYY_main.parquet** - Main company records
+1. **virksomhed_YYYY_main.parquet** - Latest company records of selected fields. Thing it as a view of multiple tables with the main fields.
 2. **virksomhed_YYYY_navne.parquet** - Company names
 3. **virksomhed_YYYY_binavne.parquet** - Secondary names
 4. **virksomhed_YYYY_beliggenhedsadresse.parquet** - Business addresses
