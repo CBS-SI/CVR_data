@@ -1,4 +1,6 @@
-.json
-.parquet
+*.json
+*.parquet
 .env
 /test
+*.pyc
+*.code-workspace
