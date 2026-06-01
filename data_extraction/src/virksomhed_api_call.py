@@ -471,18 +471,26 @@ def main(virk_username=VIRK_USERNAME,
          company_data_folder_path=COMPANY_DATA_FOLDER_PATH,
          output_filename=OUTPUT_FILENAME,
          size=3000,
-         year=None,
          save_format="parquet",
-         output_mode="panel"):
+         output_mode="panel",
+         founding_year_start=None,
+         founding_year_end=None):
     """
     Download CVR permanent data from Virk API.
 
+    Downloads Danish companies with their full history. Can download all data at once or batch by founding year range to avoid scroll timeouts.
+
+    Each company record contains temporal fields (navne, addresses, status, etc.)
+    with gyldigFra/gyldigTil validity periods that can be used to reconstruct point-in-time snapshots.
+
     Args:
         output_mode: "panel" for multiple dataframes (recommended), "wide" for single wide dataframe
+        founding_year_start: Start year for founding date filter (inclusive). Use with founding_year_end for batching.
+        founding_year_end: End year for founding date filter (inclusive). Use with founding_year_start for batching.
     """
 
-    # Use a scroll with a reasonable keep-alive; can be tuned if needed
-    scroll_keepalive = "5m"
+    # Use a longer scroll keep-alive for large downloads (max typically 1d on most ES clusters)
+    scroll_keepalive = "30m"
     url = f"{company_data_api_endpoint}?scroll={scroll_keepalive}"
     credentials = f"{virk_username}:{virk_password}"
     encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
@@ -490,44 +498,42 @@ def main(virk_username=VIRK_USERNAME,
         "Authorization": f"Basic {encoded_credentials}",
         "Content-Type": "application/json"
     }
-    
+
     # Timeout settings: connect timeout and read timeout (in seconds)
     # For large scrolls, we need generous timeouts
     timeout_connect = 30  # Connection timeout
     timeout_read = 300    # Read timeout (5 minutes for large responses)
 
-    # Build query based on whether year is specified
-    if year is not None:
-        # Filter by last update date within the specified year
+    # Build query based on founding year range
+    if founding_year_start is not None and founding_year_end is not None:
+        # Filter by founding date range (stiftelsesDato)
         query = {
             "size": size,
-            # Recommended when using scroll to get a consistent view and avoid duplicates/skips
             "sort": ["_doc"],
             "track_total_hits": True,
             "query": {
                 "range": {
-                    "Vrvirksomhed.sidstOpdateret": {
-                        "gte": f"{year}-01-01",
-                        "lte": f"{year}-12-31"
+                    "Vrvirksomhed.virksomhedMetadata.stiftelsesDato": {
+                        "gte": f"{founding_year_start}-01-01",
+                        "lte": f"{founding_year_end}-12-31"
                     }
                 }
             }
         }
-        # Update filename to include year
-        output_filename = f"{output_filename}_{year}"
-        print(f"Filtering data for year: {year}")
+        output_filename = f"{output_filename}_founded_{founding_year_start}_{founding_year_end}"
+        print(f"Retrieving companies founded between {founding_year_start} and {founding_year_end}...")
     else:
-        # Original query to get all data
+        # Query to get all data - no filtering
         query = {
             "size": size,
-            # Recommended when using scroll to get a consistent view and avoid duplicates/skips
             "sort": ["_doc"],
             "track_total_hits": True,
             "query": {
                 "match_all": {}
             }
         }
-        print("Retrieving all CVR permanent data...")
+        output_filename = f"{output_filename}_all"
+        print("Retrieving all CVR permanent data (full dataset)...")
 
     # Initial request with timeout handling
     try:
@@ -573,17 +579,17 @@ def main(virk_username=VIRK_USERNAME,
                 "scroll": scroll_keepalive,
                 "scroll_id": scroll_id
             }
-            
+
             # Scroll request with timeout and retry logic
             max_retries = 3
             retry_count = 0
             scroll_response = None
-            
+
             while retry_count < max_retries:
                 try:
                     scroll_response = requests.post(
-                        scroll_url, 
-                        json=scroll_query, 
+                        scroll_url,
+                        json=scroll_query,
                         headers=headers,
                         timeout=(timeout_connect, timeout_read)
                     )
@@ -602,7 +608,7 @@ def main(virk_username=VIRK_USERNAME,
                     else:
                         print(f"Connection error after multiple retries: {e}. Stopping scroll.")
                         break
-            
+
             if scroll_response is None or scroll_response.status_code != 200:
                 if scroll_response:
                     print(f"Scroll request failed with status code: {scroll_response.status_code}")
@@ -619,21 +625,26 @@ def main(virk_username=VIRK_USERNAME,
             hits = scroll_data['hits']['hits']
             all_results.extend(hits)
 
-            # Print progress
-            print(f"Retrieved {len(all_results)} records so far...")
+            # Print progress with percentage if total is known
+            if total_hits_value:
+                pct = (len(all_results) / total_hits_value) * 100
+                print(f"Retrieved {len(all_results):,} / {total_hits_value:,} records ({pct:.1f}%)...")
+            else:
+                print(f"Retrieved {len(all_results):,} records so far...")
     finally:
         # Best-effort scroll cleanup to release server-side resources
+        # 404 is expected if scroll already expired, so we ignore it
         if scroll_id is not None:
             try:
                 cleanup_url = "http://distribution.virk.dk/_search/scroll"
                 cleanup_body = {"scroll_id": [scroll_id]}
                 cleanup_response = requests.delete(
-                    cleanup_url, 
-                    json=cleanup_body, 
+                    cleanup_url,
+                    json=cleanup_body,
                     headers=headers,
-                    timeout=(timeout_connect, 10)  # Shorter timeout for cleanup
+                    timeout=(timeout_connect, 10)
                 )
-                if cleanup_response.status_code != 200:
+                if cleanup_response.status_code not in [200, 404]:
                     print(f"Scroll cleanup failed with status code: {cleanup_response.status_code}")
             except Exception as e:
                 print(f"Exception during scroll cleanup: {e}")
@@ -781,12 +792,31 @@ def main(virk_username=VIRK_USERNAME,
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Download CVR permanent data from Virk API')
-    parser.add_argument('--year', type=int, help='Filter data by specific year')
+    parser = argparse.ArgumentParser(
+        description='Download CVR permanent data from Virk API',
+        epilog='''
+Examples:
+  # Download all data at once
+  python virksomhed_api_call.py
+
+  # Download in batches by founding year (recommended for reliability)
+  python virksomhed_api_call.py --founding-years 1800 1990
+  python virksomhed_api_call.py --founding-years 1991 2000
+  python virksomhed_api_call.py --founding-years 2001 2010
+  python virksomhed_api_call.py --founding-years 2011 2020
+  python virksomhed_api_call.py --founding-years 2021 2030
+        '''
+    )
     parser.add_argument('--format', choices=['parquet', 'json'], default='parquet',
                         help='Output format (default: parquet)')
     parser.add_argument('--mode', choices=['panel', 'wide'], default='panel',
                         help='Output mode: panel (multiple files with temporal data) or wide (single flat file). Default: panel')
+    parser.add_argument('--founding-years', type=int, nargs=2, metavar=('START', 'END'),
+                        help='Filter by founding year range (inclusive). Example: --founding-years 2000 2010')
     args = parser.parse_args()
 
-    main(year=args.year, save_format=args.format, output_mode=args.mode)
+    founding_start = args.founding_years[0] if args.founding_years else None
+    founding_end = args.founding_years[1] if args.founding_years else None
+
+    main(save_format=args.format, output_mode=args.mode,
+         founding_year_start=founding_start, founding_year_end=founding_end)
