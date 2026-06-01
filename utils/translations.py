@@ -12,13 +12,14 @@ COLUMN_TRANSLATIONS = {
     'enhedstype': 'unit_type',
 
     # Temporal validity fields
-    'gyldigFra': 'valid_from',
-    'gyldigTil': 'valid_to',
-    'sidstOpdateret': 'last_updated',
-    'sidstIndlaest': 'last_loaded',
-    'stiftelsesDato': 'founding_date',
-    'virkningsDato': 'effective_date',
-    'naermesteFremtidigeDato': 'nearest_future_date',
+    # This fields change meaning depending on the data source.
+    # 'gyldigFra': 'valid_from',
+    # 'gyldigTil': 'valid_to',
+    # 'sidstOpdateret': 'last_updated',
+    # 'sidstIndlaest': 'last_loaded',
+    # 'stiftelsesDato': 'founding_date',
+    # 'virkningsDato': 'effective_date',
+    # 'naermesteFremtidigeDato': 'nearest_future_date',
 
     # Address fields
     'vejnavn': 'street_name',
@@ -70,8 +71,8 @@ COLUMN_TRANSLATIONS = {
 
     # Company form fields
     'virksomhedsformkode': 'legal_form_code',
-    'kortBeskrivelse': 'short_description',
-    'langBeskrivelse': 'long_description',
+    'kortBeskrivelse': 'legal_company_type_short',
+    'langBeskrivelse': 'legal_company_type_long',
     'ansvarligDataleverandoer': 'responsible_data_provider',
 
     # Contact fields
@@ -274,7 +275,7 @@ COLUMN_TRANSLATIONS = {
 
 # Values translations (Danish -> English)
 VALUE_TRANSLATIONS = {
-    # Company status values
+    # Company status values (with spaces)
     'NORMAL': 'active',
     'UNDER TVANGSOPLØSNING': 'under_forced_dissolution',
     'TVANGSOPLØST': 'forcibly_dissolved',
@@ -289,6 +290,24 @@ VALUE_TRANSLATIONS = {
     'OPLØST EFTER SPALTNING': 'dissolved_after_split',
     'SLETTET': 'deleted',
     'UDEN RETSVIRKNING': 'without_legal_effect',
+
+    # Composite status values (sammensatStatus - no spaces)
+    'Ophørt': 'ceased',
+    'Aktiv': 'active',
+    'Fremtid': 'future',
+    'OPLØSTEFTERKONKURS': 'dissolved_after_bankruptcy',
+    'OPLØSTEFTERFRIVILLIGLIKVIDATION': 'dissolved_after_voluntary_liquidation',
+    'OPLØSTEFTERFUSION': 'dissolved_after_merger',
+    'OPLØSTEFTERERKLÆRING': 'dissolved_by_declaration',
+    'OPLØSTEFTERSPALTNING': 'dissolved_after_split',
+    'OPLØSTEFTERGRÆNSEOVERSKRIDENDEHJEMSTEDSFLYTNING': 'dissolved_after_cross_border_relocation',
+    'OPLØSTEFTERGRÆNSEOVERSKRIDENDEFUSION': 'dissolved_after_cross_border_merger',
+    'UNDERKONKURS': 'under_bankruptcy',
+    'UNDERTVANGSOPLØSNING': 'under_forced_dissolution',
+    'UNDERREASSUMERING': 'under_reassumption',
+    'UNDERFRIVILLIGLIKVIDATION': 'under_voluntary_liquidation',
+    'UNDERREKONSTRUKTION': 'under_reconstruction',
+    'UDENRETSVIRKNING': 'without_legal_effect',
 
     # Industry codes
     '949900': 'other_organizations_and_associations_nec',
@@ -306,4 +325,44 @@ VALUE_TRANSLATIONS = {
     'KAPITALVALUTA': 'capital_currency',
     'PSEUDOCVRNR': 'pseudo_cvr_number',
     'ARKIV_REGISTRERINGSNUMMER': 'archive_registration_number',
+
+    # Legal form types (virksomhedsform)
+    'Enkeltmandsvirksomhed': 'sole_proprietorship',
+    'Personligt ejet Mindre Virksomhed': 'personally_owned_small_business',
+    'Forening': 'association',
+    'Interessentskab': 'general_partnership',
+    'Dødsbo': 'estate_of_deceased',
+    'Filial af udenlandsk aktieselskab, kommanditakties': 'branch_of_foreign_public_limited_company',
+    'Frivillig forening': 'voluntary_association',
+    'Anden udenlandsk virksomhed': 'other_foreign_business',
+    'Folkekirkelige Institutioner': 'church_of_denmark_institutions',
+    'Statslig administrativ enhed': 'state_administrative_unit',
+    'Grønlandsk afdeling af udenlandsk selskab eller virksomhed': 'greenlandic_branch_of_foreign_company',
+    'Fonde og andre selvejende institutioner': 'foundations_and_self_governing_institutions',
+    'Filial af udenlandsk anpartsselskab eller selskab': 'branch_of_foreign_private_limited_company',
+    'Øvrige virksomhedsformer': 'other_business_forms',
+    'Anpartsselskab': 'private_limited_company',
+    'Andelsselskab (-forening)': 'cooperative',
+    'Aktieselskab': 'public_limited_company',
+    'Partrederi': 'shipping_partnership',
+    'Selskab med begrænset ansvar': 'limited_liability_company',
+    'Iværksætterselskab': 'entrepreneurial_company',
+    'Forening med begrænset ansvar': 'association_with_limited_liability',
+    'Kommanditselskab': 'limited_partnership',
+    'Kommanditaktieselskab/Partnerselskab': 'limited_partnership_company',
+    'Fast forretningssted af Europæisk økonomisk Firmag': 'permanent_establishment_of_eeig',
+    'Filial af udenlandsk virksomhed med begrænset ansv': 'branch_of_foreign_limited_liability_company',
+    'Andelsselskab (-forening) med begrænset ansvar': 'cooperative_with_limited_liability',
+    'Erhvervsdrivende fond': 'commercial_foundation',
+    'Enhed under oprettelse i Erhvervsstyrelsen': 'entity_under_registration',
+    'Særlig finansiel virksomhed': 'special_financial_enterprise',
+    'Medarbejderinvesteringsselskab': 'employee_investment_company',
+    'Primærkommune': 'municipality',
+    'Filial af SE-selskab': 'branch_of_se_company',
+    'SE-selskab': 'european_company_se',
+    'Region': 'region',
+    'Trust': 'trust',
+    'Europæisk Økonomisk Firmagruppe': 'european_economic_interest_grouping',
+    'Selvstændig offentlig virksomhed eller dattervirksomhed heraf': 'independent_public_enterprise',
+
 }
