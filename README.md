@@ -30,9 +30,9 @@ For detailed information about data extraction scripts and structure, see [Data 
 
 I have fetched all the data available from the following API endpoints until 2025, divided by year:
 
-- 1. Company Data (`virksomhed`)
-- 2. Financial Statements (`offentliggoerelser`)
-- 3. Expanded Financial Statements
+    1. Company Data (`virksomhed`)
+    2. Financial Statements (`offentliggoerelser`)
+    3. Expanded Financial Statements
 
 Expanded Financial Statements cannot be extracted anymore (See: [https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere](https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere)). The script `individual_statements_api_call.py` under `data_extraction` is left for documentation purposes.
 
