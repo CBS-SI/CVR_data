@@ -1,12 +1,12 @@
 """
-(!) THE ORIGINAL API HAS BEEN SHUT DOWN. THIS SCRIPT IS FOR REFERENCE. (!)
+(!) THE ORIGINAL API ENDPOINT HAS BEEN SHUT DOWN (!)
+(!) THIS SCRIPT IS FOR REFERENCE                 (!)
 
 This script:
-1. Fetches XML URLs for a given year.
-2. Downloads and parses XBRL XML files in batches.
-3. Directly transforms the data into wide format (pivot table).
+1. Fetches XML URLs for a given year (async).
+2. Downloads and parses XBRL XML files in batches (async).
+3. Transforms the data into wide format (not panel, each row is unique).
 4. Outputs companies_all_tags_{year}.parquet files
-
 """
 
 import os
@@ -21,14 +21,14 @@ from tqdm.asyncio import tqdm_asyncio
 
 load_dotenv()
 
-# --- Environment Variables ---
+# Environment Variables
 FS_FOLDER_PATH = os.getenv("FS_FOLDER_PATH") # "FS=financial_statements"
 INPUT_FILENAME = "financial_statements"
 
 EFS_FOLDER_PATH = os.getenv("EFS_FOLDER_PATH") # "EFS=expanded_financial_statements"
-OUTPUT_FILENAME = "companies_all_tags"
+OUTPUT_FILENAME = "expanded_financial_statements"
 
-# --- Argument Parsing ---
+# Argument Parsing
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description='Download and process company financial data into wide format for specified year range'
@@ -63,7 +63,8 @@ def parse_arguments():
     return args
 
 
-def get_xml_dataframe(fs_folder_path=FS_FOLDER_PATH, input_filename=INPUT_FILENAME):
+def get_xml_dataframe(fs_folder_path=FS_FOLDER_PATH,
+                      input_filename=INPUT_FILENAME):
     """Load the financial statements metadata file."""
     input_path = os.path.join(fs_folder_path, f"{input_filename}.parquet")
     df = pd.read_parquet(input_path)
@@ -78,7 +79,6 @@ def get_xml_urls_by_year(data, year):
     cond_2 = ~df['AARSRAPPORT_xml'].isna()
     xml_urls = df[cond_1 & cond_2]["AARSRAPPORT_xml"].unique().tolist()
     return xml_urls
-
 
 async def fetch_xml(client, url):
     """Fetch a single XML file from URL."""
@@ -95,13 +95,13 @@ async def fetch_xml(client, url):
 
 
 def parse_xml_content(xml_content):
-    """Parse XBRL XML content and return a DataFrame."""
+    """Parse XBRL XML content from multiple namespaces and return a single DataFrame."""
     if xml_content is None:
         return pd.DataFrame()
-
     try:
         root = ET.fromstring(xml_content)
 
+        # Shortcuts for namespace prefixes
         ns = {
             "xbrli": "http://www.xbrl.org/2003/instance",
             "gsd": "http://xbrl.dcca.dk/gsd",
@@ -117,8 +117,8 @@ def parse_xml_content(xml_content):
             context_id = context.get("id")
             period = context.find("xbrli:period", ns)
             entity = context.find("xbrli:entity", ns)
-
             identifier_elem = entity.find("xbrli:identifier", ns)
+
             identifier = identifier_elem.text if identifier_elem is not None else ""
 
             start_date = period.findtext("xbrli:startDate", default="", namespaces=ns)
@@ -159,21 +159,35 @@ def parse_xml_content(xml_content):
 
 
 async def process_urls_async(urls_batch):
-    """Fetch and parse a batch of XML URLs asynchronously."""
-    all_dfs = []
+    """Fetch and parse a batch of XML URLs concurrently."""
     async with httpx.AsyncClient() as client:
-        tasks = [fetch_xml(client, url) for url in urls_batch]
-        for url, xml_content in await tqdm_asyncio.gather(*tasks, desc="Fetching and Parsing XMLs"):
-            if xml_content:
-                df_company = parse_xml_content(xml_content)
-                if not df_company.empty:
-                    all_dfs.append(df_company)
-    return pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+        # Store download jobs in a list
+        download_jobs = [fetch_xml(client, url) for url in urls_batch]
+
+        # Run concurrently and gather results
+        results = await tqdm_asyncio.gather(*download_jobs, desc="Fetching and Parsing XMLs")
+
+    # Parse each successfully downloaded XML into a DataFrame. Skip those that failed.
+    # TODO: avoid silent failures, store failed and empty URLs.
+    company_dfs = []
+    for url, xml_content in results:
+        if xml_content is None:
+            continue
+
+        df_company = parse_xml_content(xml_content)
+        if df_company.empty:
+            continue
+
+        company_dfs.append(df_company)
+
+    return pd.concat(company_dfs, ignore_index=True)
+
 
 
 def transform_to_wide_format(df, year):
     """Transform long format DataFrame to wide format (pivot table)."""
     if df.empty:
+        print("The dataframe with the XML URLs batch is empty")
         return pd.DataFrame()
 
     print("Formatting data to wide format...")
@@ -184,6 +198,7 @@ def transform_to_wide_format(df, year):
     df["instant"] = pd.to_datetime(df["instant"], errors="coerce")
 
     # Apply filters to match the specified year
+    # note: cond_1 & cond_2 apply to different fields. this filter applies to both.
     cond = (df["end_date"].dt.year == year) | (df["instant"].dt.year == year)
     df = df[cond]
 
@@ -209,18 +224,19 @@ def transform_to_wide_format(df, year):
 
 @print_durations()
 def download_and_process_year(year: int,
-                               fs_folder_path=FS_FOLDER_PATH,
-                               input_filename=INPUT_FILENAME,
-                               efs_folder_path=EFS_FOLDER_PATH,
-                               output_filename=OUTPUT_FILENAME,
-                               batch_size: int = 1000):
+                              fs_folder_path=FS_FOLDER_PATH,
+                              input_filename=INPUT_FILENAME,
+                              efs_folder_path=EFS_FOLDER_PATH,
+                              output_filename=OUTPUT_FILENAME,
+                              batch_size: int = 1000):
     """Download XML data for a year and directly produce wide format output."""
 
     print(f"\n{'='*60}")
     print(f"Processing year: {year}")
+    print(f"Batch size: {batch_size}")
     print(f"{'='*60}\n")
 
-    print("Reading local virk.dk financial statement metadata file...")
+    print(f"Reading local virk.dk financial statement metadata file from {fs_folder_path}/{input_filename}.parquet...")
     xml_df = get_xml_dataframe(fs_folder_path, input_filename)
     xml_urls = get_xml_urls_by_year(xml_df, year)
 
@@ -232,23 +248,24 @@ def download_and_process_year(year: int,
         return
 
     # Process in batches and accumulate data
+    # note: num_batches does a ceiling division to round up to the nearest integer.
     num_batches = (total_urls + batch_size - 1) // batch_size
     all_batch_dfs = []
 
-    for i in range(num_batches):
-        start_index = i * batch_size
-        end_index = min((i + 1) * batch_size, total_urls)
+    for batch_number in range(num_batches):
+        start_index = batch_number * batch_size
+        end_index = min((batch_number + 1) * batch_size, total_urls)
         current_batch_urls = xml_urls[start_index:end_index]
 
-        print(f"\nProcessing Batch {i+1}/{num_batches} (URLs {start_index} to {end_index-1})...")
+        print(f"\nProcessing Batch {batch_number+1}/{num_batches} (URLs {start_index} to {end_index-1})...")
 
         df_batch = asyncio.run(process_urls_async(current_batch_urls))
 
         if not df_batch.empty:
-            print(f"Batch {i+1} completed. Total rows in this batch: {len(df_batch)}")
+            print(f"Batch {batch_number+1} completed. Total rows in this batch: {len(df_batch)}")
             all_batch_dfs.append(df_batch)
         else:
-            print(f"No data extracted for Batch {i+1}.")
+            print(f"No data extracted for Batch {batch_number+1}. Empty batch dataframe")
 
     # Combine all batches
     if not all_batch_dfs:
@@ -271,10 +288,10 @@ def download_and_process_year(year: int,
     output_path = os.path.join(efs_folder_path, f"{output_filename}_{year}.parquet")
     print(f"\nSaving final wide format data to: {output_path}")
     df_wide.to_parquet(output_path, index=False)
-    print(f"✓ Successfully saved! Total companies: {len(df_wide)}, Total columns: {len(df_wide.columns)}")
+    print(f"Successfully saved! Total companies: {len(df_wide)}, Total columns: {len(df_wide.columns)}")
 
 
-# --- Main ---
+#  Main
 def main():
     args = parse_arguments()
     years = args.years
@@ -293,7 +310,6 @@ def main():
     print(f"\n{'='*60}")
     print("All years processed!")
     print(f"{'='*60}")
-
 
 if __name__ == "__main__":
     main()

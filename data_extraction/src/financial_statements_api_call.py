@@ -1,7 +1,7 @@
 """
 This script creates a financial_statements.parquet file
 with the financial statements of Danish companies. It downloads
-the financial data, flattens nested structures, and saves as parquet
+the financial data, flattens nested structures, and saves as parquet files
 """
 
 import os
@@ -37,10 +37,7 @@ def flatten_financial_data(json_data):
     # Handle the nested "dokumenter" field specially
     processed_sources = []
     for source in sources:
-        # Make a copy to avoid modifying original
         processed_source = source.copy()
-
-        # Extract dokumenter information and flatten it
         dokumenter = source.get("dokumenter", [])
 
         # Remove original dokumenter field to avoid conflicts
