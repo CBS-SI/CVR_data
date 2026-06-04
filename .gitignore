@@ -4,3 +4,4 @@
 /test
 *.pyc
 *.code-workspace
+.ipynb_checkpoints
