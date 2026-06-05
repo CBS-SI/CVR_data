@@ -35,7 +35,15 @@ Sources:
     2. Financial Statements (`offentliggoerelser`)
     3. Expanded Financial Statements
 
-Expanded Financial Statements cannot be extracted anymore (See: [https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere](https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere)). The script `individual_statements_api_call.py` under `data_extraction` is left for documentation purposes.
+## GDPR and Data Protection
+
+Please, note that you should follow the legislation when hosting/downloading this data. You are responsible for complying with i) GDPR and national laws; ii) API usage terms; iii) Data license.
+
+- Company Data (`virksomhed`) is under [CC 4.0](https://datafordeler.dk/vejledning/brugervilkaar/det-centrale-virksomhedsregister-cvr/). However, solo propietorship (`Enkeltmandsvirksomhed`) are under GDPR protection and business with the `reklamebeskyttet==True` flag cannot be used for advertising purposes.
+
+- Financial Statements (`offentliggoerelser`) has a special API license that you agree when you get the API key access (see [here](https://datacvr.virk.dk/artikel/vilkaar-og-betingelser)). Some of this data also contains personal data (signatories/owners fields) under GDPR protection.
+
+- Expanded Financial Statements cannot be extracted anymore due to changes in the Danish legislation (see: [https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere](https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere)). The script `expand_financial_statements_api_call.py` under `data_extraction/src` is left for documentation purposes.
 
 ## Limitations and TODOs
 
