@@ -31,6 +31,9 @@ python get_historical_virksomhed_api_call.py --start-year 1990 --end-year 2025
 # Re-download years that are already present on disk
 python get_historical_virksomhed_api_call.py --overwrite
 
+# Fetch ONLY companies with no founding date (the "unknown" partition)
+python get_historical_virksomhed_api_call.py --year-unknown
+
 # Write to a specific output folder (defaults to RAW_VIRKSOMHED_FOLDER_PATH in .env)
 python get_historical_virksomhed_api_call.py --folder /path/to/output
 ```
@@ -41,6 +44,7 @@ Options:
 - `--end-year`: Last founding year to fetch, inclusive (default: current year).
 - `--folder`: Output folder. Defaults to `RAW_VIRKSOMHED_FOLDER_PATH` from `.env`.
 - `--overwrite`: Re-download years already present on disk. Without it, completed years are skipped.
+- `--year-unknown`: Fetch **only** the `unknown` partition (companies with no founding date) and nothing else. Cannot be combined with `--start-year`/`--end-year`. (The `unknown` partition is included automatically on a full default backfill.)
 
 ### 1.1 Folder Data Structure (`virksomhed`)
 
