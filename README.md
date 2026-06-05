@@ -10,7 +10,9 @@ For the official API documentation please go to: [https://datacvr.virk.dk/artike
 
 ## Why?
 
-This is free and open-source. Many companies take advantage of the poor API documentation to build their own data pipelines and charge clients for theis free data.
+This is free and open-source.
+
+Many companies take advantage of the poor CVR API documentation to build their own data pipelines and charge clients for this free data.
 
 The Official CVR API:
 
