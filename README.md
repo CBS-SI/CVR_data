@@ -1,4 +1,4 @@
-# Danish Central Business Register Data - English Documentation and Scripts
+# CVR - Central Business Register - Mass download scripts
 
 ![cover](images/cover.png)
 
@@ -61,7 +61,7 @@ Individuals and entities participating in companies (`offentliggoerelser`) are a
 
 These fields can be implemented to the original script.
 
-## Helpful Resources
+## Helpful Resources in English
 
 Below are other project and resources found in the open internet that helps to understand the data.
 

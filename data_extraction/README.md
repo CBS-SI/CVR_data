@@ -1,73 +1,71 @@
 # Danish Business Authority: Data Extraction
 
-To run this script, you will need:
+To run these scripts, you will need:
 
-- A valid CVR API key. To get it, email the CVR office at [this website](https://erhvervsstyrelsen.dk/kom-godt-igang-med-elasticSearch)
-- Install the required dependencies at the environment file `environment.yml`. You can use `conda` (`conda env create -f environment.yml -n cvr`), `uv`, `pipx` or whatever you prefer.
-- Set environment variables at `.env`. See `.env.example` for an example.
+1. A valid CVR API key. To get it, email the CVR office at [this website](https://erhvervsstyrelsen.dk/kom-godt-igang-med-elasticSearch)
+2. Install the required dependencies at the environment file `environment.yml`. You can use `conda` (`conda env create -f environment.yml -n cvr`), `uv`, `pipx` or whatever you prefer.
+3. Set environment variables at `.env`. See `.env.example` for an example.
 
 ## 1. Historical Company Data (`virksomhed`)
 
 - Script: `src/get_historical_virksomhed_api_call.py`
 - Endpoint 1: `http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
 - Endpoint 2: `http://distribution.virk.dk/_search/scroll`
-- Data files: `virksomhed_all_*.parquet`
+- Data files: `<table>_<year>.parquet` (e.g. `main_2024.parquet`, `navne_2024.parquet`)
 
-The script downloads the **complete dataset** of all Danish companies with their full history. Each company record contains temporal fields (`navne`, `addresses`, `status`, etc.) with `gyldigFra`/`gyldigTil` validity periods that can be used to reconstruct point-in-time snapshots for any date.
+The script downloads the **complete dataset** of all Danish companies with their full history. Each company record contains temporal fields (`navne`, addresses, `virksomhedsstatus`, etc.) with `gyldigFra`/`gyldigTil` validity periods that can be used to reconstruct point-in-time snapshots for any date.
+
+It works **one founding year at a time** to avoid memory spikes, and writes the 20 tables (see below) for each year. Companies with no founding date (`stiftelsesDato`) are written to an `unknown` partition (e.g. `main_unknown.parquet`).
+
+The run is **resumable**: a year is considered done only when all 20 of its table files exist on disk, so years already downloaded are skipped unless `--overwrite` is passed. On success it writes the run timestamp to `_state.json`, which the incremental update script (section 2) uses as its starting point.
 
 Script usage:
 
 ```py
-# Download all data at once may timeout or hit API limits as we use concurrent requests
-python virksomhed_api_call.py
+# Backfill everything (founding years 1800 .. current year, plus the "unknown" partition)
+python get_historical_virksomhed_api_call.py
 
-# Download in batches by founding year (recommended for reliability)
-# Range of years are inclusive (e.g. 1800-1990 includes from Jan 1st 1800 to Dec 31st 1990)
-python virksomhed_api_call.py --founding-years 1800 1990
-python virksomhed_api_call.py --founding-years 1991 2000
-python virksomhed_api_call.py --founding-years 2001 2010
-python virksomhed_api_call.py --founding-years 2011 2020
-python virksomhed_api_call.py --founding-years 2021 2025
+# Backfill a specific founding-year range (inclusive on both ends)
+python get_historical_virksomhed_api_call.py --start-year 1990 --end-year 2025
 
-# Output formatting: parquet (default) or json
-python virksomhed_api_call.py --format "json"
+# Re-download years that are already present on disk
+python get_historical_virksomhed_api_call.py --overwrite
 
-# Output mode: panel (default, recommended, multiple files) or wide (single file, nested fields)
-python virksomhed_api_call.py --mode "panel"
+# Write to a specific output folder (defaults to RAW_VIRKSOMHED_FOLDER_PATH in .env)
+python get_historical_virksomhed_api_call.py --folder /path/to/output
 ```
 
 Options:
 
-- `--founding-years START END`: Filter by founding date range (stiftelsesDato). I recommend using 5-10 year range for batching large downloads.
-- `--format`: `parquet` (default) or `json`.
-- `--mode`: `panel` (default) outputs 22 files with all unnested json files while `wide` is only one file with all historical records as JSON nested strings within fields/columns. **Panel mode is almost always better if you do not plan to unnest the data yourself.**
+- `--start-year`: First founding year to fetch (default `1800`).
+- `--end-year`: Last founding year to fetch, inclusive (default: current year).
+- `--folder`: Output folder. Defaults to `RAW_VIRKSOMHED_FOLDER_PATH` from `.env`.
+- `--overwrite`: Re-download years already present on disk. Without it, completed years are skipped.
 
 ### 1.1 Folder Data Structure (`virksomhed`)
 
-Calling the API via the python script in panel mode (e.g. `virksomhed_api_call.py --year 2018 --mode "panel"`) generates 22 `.parquet` files.
+Each founding year produces 20 `.parquet` files, named `<table>_<year>.parquet` (the `unknown` partition uses `<table>_unknown.parquet`). Replace `<year>` below with the founding year, e.g. `main_2024.parquet`.
 
-1. **virksomhed_YYYY_main.parquet** - Latest company records of selected fields. Thing it as a view of multiple tables with the main fields.
-2. **virksomhed_YYYY_navne.parquet** - Company names
-3. **virksomhed_YYYY_binavne.parquet** - Secondary names
-4. **virksomhed_YYYY_beliggenhedsadresse.parquet** - Business addresses
-5. **virksomhed_YYYY_postadresse.parquet** - Postal addresses
-6. **virksomhed_YYYY_hovedbranche.parquet** - Main industry
-7. **virksomhed_YYYY_bibranche1.parquet** - Secondary industry 1
-8. **virksomhed_YYYY_bibranche2.parquet** - Secondary industry 2
-9. **virksomhed_YYYY_bibranche3.parquet** - Secondary industry 3
-10. **virksomhed_YYYY_maanedsbeskaeftigelse.parquet** - Monthly employment data
-11. **virksomhed_YYYY_kvartalsbeskaeftigelse.parquet** - Quarterly employment data
-12. **virksomhed_YYYY_aarsbeskaeftigelse.parquet** - Annual employment data
-13. **virksomhed_YYYY_virksomhedsstatus.parquet** - Company status
-14. **virksomhed_YYYY_virksomhedsform.parquet** - Company legal form
-15. **virksomhed_YYYY_livsforloeb.parquet** - Company lifecycle
-16. **virksomhed_YYYY_deltagerRelation.parquet** - Participant relations
-17. **virksomhed_YYYY_attributter.parquet** - Company attributes
-18. **virksomhed_YYYY_regNummer.parquet** - Registration numbers
-19. **virksomhed_YYYY_telefonNummer.parquet** - Phone numbers
-20. **virksomhed_YYYY_telefaxNummer.parquet** - Fax numbers
-21. **virksomhed_YYYY_elektroniskPost.parquet** - Email addresses
-22. **virksomhed_YYYY_hjemmeside.parquet** - Websites
+1. **main\_<year>.parquet** - Latest company records of the non-list fields. Think of it as a view of multiple tables with the main fields (holds the `cvrNummer`, `enhedsNummer` and `reklamebeskyttelse` flag).
+2. **navne\_<year>.parquet** - Company names
+3. **binavne\_<year>.parquet** - Secondary names
+4. **beliggenhedsadresse\_<year>.parquet** - Business addresses
+5. **postadresse\_<year>.parquet** - Postal addresses
+6. **hovedbranche\_<year>.parquet** - Main industry
+7. **bibranche1\_<year>.parquet** - Secondary industry 1
+8. **bibranche2\_<year>.parquet** - Secondary industry 2
+9. **bibranche3\_<year>.parquet** - Secondary industry 3
+10. **aarsbeskaeftigelse\_<year>.parquet** - Annual employment data
+11. **kvartalsbeskaeftigelse\_<year>.parquet** - Quarterly employment data
+12. **maanedsbeskaeftigelse\_<year>.parquet** - Monthly employment data
+13. **virksomhedsstatus\_<year>.parquet** - Company status
+14. **telefonNummer\_<year>.parquet** - Phone numbers
+15. **telefaxNummer\_<year>.parquet** - Fax numbers
+16. **elektroniskPost\_<year>.parquet** - Email addresses
+17. **hjemmeside\_<year>.parquet** - Websites
+18. **virksomhedsform\_<year>.parquet** - Company legal form
+19. **regNummer\_<year>.parquet** - Registration numbers
+20. **livsforloeb\_<year>.parquet** - Company lifecycle
 
 ## 1.2 Fields Data Structure (`virksomhed`)
 
@@ -80,30 +78,33 @@ Fields available at [virksomhed_data.md](virksomhed_data.md)
 - Script: `src/update_data_virksomhed_api_call.py`
 - Endpoint 1: `http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
 - Endpoint 2: `http://distribution.virk.dk/_search/scroll`
-- Data files: `virksomhed_all_*.parquet`
+- Data files: the same `<table>_<year>.parquet` files produced by the historical backfill
 
-The script downloads the **complete dataset** of all Danish companies with their full history. Each company record contains temporal fields (`navne`, `addresses`, `status`, etc.) with `gyldigFra`/`gyldigTil` validity periods that can be used to reconstruct point-in-time snapshots for any date.
+This script performs an **incremental update** rather than a full download. It fetches only the companies whose record changed since the last successful run (using the `sidstOpdateret` field) and **upserts** them into the matching founding-year files: existing rows for those companies are dropped and the fresh rows appended, so only the year files that actually changed are rewritten.
+
+The starting point ("last run") is read from `_state.json`, written by the historical backfill and refreshed after every successful update. A small **lookback buffer** (default 1 day) re-scans a little overlap so a late-landing edit is never missed. Run the historical backfill (section 1) at least once before using this script.
 
 Script usage:
 
 ```py
-# Download all data at once may timeout or hit API limits as we use concurrent requests
-python virksomhed_api_call.py
+# Incremental update from the last run recorded in _state.json
+python update_data_virksomhed_api_call.py
 
-# Download in batches by founding year (recommended for reliability)
-# Range of years are inclusive (e.g. 1800-1990 includes from Jan 1st 1800 to Dec 31st 1990)
-python virksomhed_api_call.py --founding-years 1800 1990
-python virksomhed_api_call.py --founding-years 1991 2000
-python virksomhed_api_call.py --founding-years 2001 2010
-python virksomhed_api_call.py --founding-years 2011 2020
-python virksomhed_api_call.py --founding-years 2021 2025
+# Override the start date instead of using _state.json
+python update_data_virksomhed_api_call.py --since 2026-06-01
 
-# Output formatting: parquet (default) or json
-python virksomhed_api_call.py --format "json"
+# Widen the lookback overlap to absorb more replication lag
+python update_data_virksomhed_api_call.py --buffer-days 2
 
-# Output mode: panel (default, recommended, multiple files) or wide (single file, nested fields)
-python virksomhed_api_call.py --mode "panel"
+# Write to a specific output folder (defaults to RAW_VIRKSOMHED_FOLDER_PATH in .env)
+python update_data_virksomhed_api_call.py --folder /path/to/output
 ```
+
+Options:
+
+- `--since`: Override the start date (`YYYY-MM-DD` or ISO). Default: last run from `_state.json`.
+- `--buffer-days`: Lookback overlap in days to absorb replication lag (default `1`).
+- `--folder`: Output folder. Defaults to `RAW_VIRKSOMHED_FOLDER_PATH` from `.env`.
 
 ## 3. Financial Statements (`offentliggoerelser`)
 
@@ -115,20 +116,27 @@ Contains the companies financial statements submitted for a given year.
 
 It is mandatory to submit one per year but they can do more than 1 per year for different reasons (e.g. board meetings). After September 2025, this endpoint does not contain that much data besides the `.xml` URL link to the financials. This link used to be useful to extract the individual company financials, but now the endpoints are dead.
 
+It writes a single file: `financial_statements.parquet`, or `financial_statements_<year>.parquet` when `--year` is given.
+
 Script usage:
 
 ```py
-# Single year
-python financial_statements_api_call.py --years 2020
+# All available statements
+python financial_statements_api_call.py
 
-# Year range
-python financial_statements_api_call.py --years 2018 2020
+# Filter by a single year (writes financial_statements_2020.parquet)
+python financial_statements_api_call.py --year 2020
 
 # Output formatting: parquet (default) or json
-python financial_statements_api_call.py --years 2020 --format "json"
+python financial_statements_api_call.py --year 2020 --format "json"
 ```
 
-## 3. Expanded Financial Statements (shut down)
+Options:
+
+- `--year`: Filter data by a single year. Omit to fetch everything.
+- `--format`: `parquet` (default) or `json`.
+
+## 4. Expanded Financial Statements (shut down)
 
 - Script: `src/expand_financial_statements_api_call.py`
 - Endpoint: None
@@ -140,15 +148,22 @@ Contains all the companies that have submitted a financial statement that year, 
 
 _Erhvervsstyrelsen_ (The Danish Business Authority) has shut down the `.xml` endpoints in September 25th - therefore the script no longer works. The field in the `.xml` files exists but you cannot ping it. See: [https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere](https://erhvervsstyrelsen.dk/vejledning-adgang-til-oplysninger-om-reelle-ejere).
 
-Script usage:
+It reads the `financial_statements.parquet` produced in section 3 and writes `expanded_financial_statements_<year>.parquet`.
+
+Script usage (kept for documentation — the endpoints are dead):
 
 ```py
 # Single year
-python individual_statements_api_call.py --years 2020
+python expand_financial_statements_api_call.py --years 2020
 
 # Year range
-python individual_statements_api_call.py --years 2018 2020
+python expand_financial_statements_api_call.py --years 2018 2020
 
 # With custom batch size
-python individual_statements_api_call.py --years 2020 --batch-size 500
+python expand_financial_statements_api_call.py --years 2020 --batch-size 500
 ```
+
+Options:
+
+- `--years`: One year (e.g. `2020`) or a two-value inclusive range (e.g. `2018 2020`). Required.
+- `--batch-size`: Number of URLs to process per batch (default `1000`).
