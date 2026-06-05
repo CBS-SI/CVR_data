@@ -20,7 +20,7 @@ load_dotenv()
 # Env files
 VIRK_USERNAME = os.getenv("VIRK_USERNAME")
 VIRK_PASSWORD = os.getenv("VIRK_PASSWORD")
-VIRKSOMHED_FOLDER_PATH = os.getenv("VIRKSOMHED_FOLDER_PATH")
+RAW_VIRKSOMHED_FOLDER_PATH = os.getenv("RAW_VIRKSOMHED_FOLDER_PATH")
 
 # API endpoints
 # Note: the API uses HTTP (not HTTPS)

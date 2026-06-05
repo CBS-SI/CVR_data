@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Incrementally update CVR data using sidstOpdateret."
     )
-    parser.add_argument("--folder", default=utils.VIRKSOMHED_FOLDER_PATH)
+    parser.add_argument("--folder", default=utils.RAW_VIRKSOMHED_FOLDER_PATH)
     parser.add_argument("--since",
                         help="Override start date (YYYY-MM-DD or ISO). "
                              "Default: last run from _state.json.")
@@ -87,6 +87,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.folder:
-        raise SystemExit("No data folder. Set VIRKSOMHED_FOLDER_PATH in .env or pass --folder.")
+        raise SystemExit("No data folder. Set RAW_VIRKSOMHED_FOLDER_PATH in .env or pass --folder.")
 
     run(args.folder, args.since, args.buffer_days)
