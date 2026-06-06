@@ -67,7 +67,7 @@ def make_client():
         endpoint_url=S3_ENDPOINT_URL,
         region_name=S3_REGION,
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID") or None,
-        aws_access_key=os.getenv("AWS_ACCESS_KEY") or None,
+        aws_secret_access_key=os.getenv("AWS_ACCESS_KEY") or None,
     )
 
 
