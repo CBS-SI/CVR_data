@@ -110,6 +110,41 @@ Options:
 - `--buffer-days`: Lookback overlap in days to absorb replication lag (default `1`).
 - `--folder`: Output folder. Defaults to `RAW_VIRKSOMHED_FOLDER_PATH` from `.env`.
 
+### 2.1 Update Company Data on S3 (`virksomhed`)
+
+- Script: `src/update_data_virksomhed_s3_api_call.py`
+- Storage layer: `utils/utils_virksomhed_s3.py`
+- Objects: `<prefix>/<table>_<year>.parquet` and `<prefix>/_state.json` in the bucket
+
+Same incremental-upsert logic as section 2, but it reads and writes the parquet files and `_state.json` directly to an S3-compatible bucket instead of local path (e.g. I use [Garage](https://garagehq.deuxfleurs.fr/)).
+
+You will need to set up the S3 storage config in `.env` (see `.env.example`).
+
+I recommend uploading the historical data and `_state.json` to the bucket first, using `aws s3 cp` or a similar tool.
+
+Script usage:
+
+```py
+# Incremental update from the last run recorded in <prefix>/_state.json
+python update_data_virksomhed_s3_api_call.py
+
+# Override the start date
+python update_data_virksomhed_s3_api_call.py --since 2026-06-01
+
+# Widen the lookback overlap
+python update_data_virksomhed_s3_api_call.py --buffer-days 2
+
+# Target a specific bucket/prefix (defaults come from .env)
+python update_data_virksomhed_s3_api_call.py --bucket cvr-data --prefix virksomhed
+```
+
+Options:
+
+- `--bucket`: S3 bucket. Defaults to `S3_BUCKET` from `.env`.
+- `--prefix`: Key prefix for the data. Defaults to `VIRKSOMHED_S3_PREFIX` from `.env`.
+- `--since`: Override the start date (`YYYY-MM-DD` or ISO). Default: last run from `<prefix>/_state.json`.
+- `--buffer-days`: Lookback overlap in days to absorb replication lag (default `1`).
+
 ## 3. Financial Statements (`offentliggoerelser`)
 
 - Script: `src/financial_statements_api_call.py`
