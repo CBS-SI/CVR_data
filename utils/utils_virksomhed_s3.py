@@ -43,6 +43,13 @@ _STATE_KEY = "_state.json"
 _NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
 
 
+def _is_not_found(exc):
+    code = exc.response["Error"]["Code"]
+    msg = exc.response["Error"].get("Message", "")
+    return code in _NOT_FOUND or (code == "AccessDenied" and "No such key" in msg)
+
+
+
 def make_client():
     """Create a boto3 S3 client pointed at the configured endpoint.
 
@@ -90,7 +97,7 @@ def _read_parquet_if_exists(client, bucket, key):
     try:
         obj = client.get_object(Bucket=bucket, Key=key)
     except ClientError as exc:
-        if exc.response["Error"]["Code"] in _NOT_FOUND:
+        if _is_not_found(exc):
             return None
         raise
     return pd.read_parquet(io.BytesIO(obj["Body"].read()))
