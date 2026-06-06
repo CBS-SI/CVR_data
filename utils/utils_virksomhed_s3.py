@@ -19,7 +19,7 @@ replaced or not at all, so upsert_year_s3 cannot leave a half-written file.
 
 Config comes from .env (see .env.example):
     S3_ENDPOINT_URL, S3_BUCKET, S3_VIRKSOMHED_PREFIX, S3_REGION,
-    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    AWS_ACCESS_KEY_ID, AWS_ACCESS_KEY
 """
 
 import io
@@ -46,7 +46,7 @@ _NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
 def make_client():
     """Create a boto3 S3 client pointed at the configured endpoint.
 
-    Credentials are read explicitly from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+    Credentials are read explicitly from AWS_ACCESS_KEY_ID / AWS_ACCESS_KEY
     when present; otherwise boto3's default chain (e.g. ~/.aws/credentials) is used.
     """
     try:
@@ -67,7 +67,7 @@ def make_client():
         endpoint_url=S3_ENDPOINT_URL,
         region_name=S3_REGION,
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID") or None,
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY") or None,
+        aws_access_key=os.getenv("AWS_ACCESS_KEY") or None,
     )
 
 
