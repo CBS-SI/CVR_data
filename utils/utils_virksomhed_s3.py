@@ -118,7 +118,7 @@ def read_last_run(client, bucket, prefix):
     try:
         obj = client.get_object(Bucket=bucket, Key=key)
     except ClientError as exc:
-        if exc.response["Error"]["Code"] in _NOT_FOUND:
+        if _is_not_found(exc):
             return None
         raise
     return json.loads(obj["Body"].read()).get("last_run_utc")
