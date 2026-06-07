@@ -24,6 +24,41 @@ UTILS_FOLDER = os.getenv("UTILS_FOLDER")
 sys.path.insert(1, UTILS_FOLDER)
 import utils_virksomhed as utils
 
+
+# Queries used only by this backfill (size 3000 is the max allowed by the API).
+def query_by_founding_year(year, size=3000):
+    """Companies founded within a single calendar year."""
+    return {
+        "size": size,
+        "sort": ["_doc"],
+        "track_total_hits": True,
+        "query": {
+            "range": {
+                "Vrvirksomhed.virksomhedMetadata.stiftelsesDato": {
+                    "gte": f"{year}-01-01",
+                    "lte": f"{year}-12-31",
+                }
+            }
+        },
+    }
+
+
+def query_no_founding_year(size=3000):
+    """Companies that have no stiftelsesDato (skipped by the year ranges)."""
+    return {
+        "size": size,
+        "sort": ["_doc"],
+        "track_total_hits": True,
+        "query": {
+            "bool": {
+                "must_not": {
+                    "exists": {"field": "Vrvirksomhed.virksomhedMetadata.stiftelsesDato"}
+                }
+            }
+        },
+    }
+
+
 @print_durations()
 def run(years, folder, overwrite):
     # Capture the start time up front: a later incremental update should pick up
@@ -45,9 +80,9 @@ def run(years, folder, overwrite):
 
         print(f"Fetching founding year: {year}...")
         if year == "unknown":
-            query = utils.query_no_founding_year()
+            query = query_no_founding_year()
         else:
-            query = utils.query_by_founding_year(int(year))
+            query = query_by_founding_year(int(year))
         all_hits = utils.fetch_query(query)
 
         print(f"-> Saving {len(all_hits)} records in parquet files for {year}...")

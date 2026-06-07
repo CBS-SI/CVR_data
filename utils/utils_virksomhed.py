@@ -41,39 +41,6 @@ TABLES = [
 
 # Queries
 # Note: size 3000 is the max allowed by the API.
-def query_by_founding_year(year, size=3000):
-    """Companies founded within a single calendar year."""
-    return {
-        "size": size,
-        "sort": ["_doc"],
-        "track_total_hits": True,
-        "query": {
-            "range": {
-                "Vrvirksomhed.virksomhedMetadata.stiftelsesDato": {
-                    "gte": f"{year}-01-01",
-                    "lte": f"{year}-12-31",
-                }
-            }
-        },
-    }
-
-
-def query_no_founding_year(size=3000):
-    """Companies that have no stiftelsesDato (skipped by the year ranges)."""
-    return {
-        "size": size,
-        "sort": ["_doc"],
-        "track_total_hits": True,
-        "query": {
-            "bool": {
-                "must_not": {
-                    "exists": {"field": "Vrvirksomhed.virksomhedMetadata.stiftelsesDato"}
-                }
-            }
-        },
-    }
-
-
 def query_updated_since(since_iso, size=3000):
     """Companies whose record changed on/after the given date (incremental)."""
     return {
@@ -188,14 +155,6 @@ def founding_year(hit):
         return stiftelses_dato[:4]            # the year, example: "2024"
     return "unknown"
 
-
-# Note: overwrites existing files
-def save_panel(panel, folder, year):
-    """Write every table in the panel list as <table>_<year>.parquet."""
-    os.makedirs(folder, exist_ok=True)
-    for name, df in panel.items():
-        path = os.path.join(folder, f"{name}_{year}.parquet")
-        df.to_parquet(path, index=False)
 
 # Note: minimal upserts avoids gaps.
 def upsert_year(folder, year, hits_for_year):
