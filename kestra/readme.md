@@ -1,3 +1,7 @@
 ## Notes
 
-To create base64 secrets: `echo -n "<important_secret_key>" | base64`
+To create base64 secrets:
+
+```
+echo -n "<important_secret_key>" | base64
+```
