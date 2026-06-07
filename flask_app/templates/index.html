@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CVR Data Download</title>
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <header>
+            <h1>CVR Data</h1>
+            <p>
+                Central Business Register &mdash; Danish Company Data (virk.dk)
+            </p>
+            <p id="last-updated" class="last-updated" hidden></p>
+        </header>
+
+        <main>
+            <div class="card">
+                <div class="field">
+                    <label for="table-select">Table</label>
+                    <select id="table-select">
+                        {% for table in tables %}
+                        <option value="{{ table }}">{{ table }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Founding years</label>
+                    <div id="slider-loading" class="loading">
+                        Loading years&hellip;
+                    </div>
+                    <div id="slider-section" hidden>
+                        <div class="range-display">
+                            <span id="label-from" class="range-year">—</span>
+                            <span class="range-sep">to</span>
+                            <span id="label-to" class="range-year">—</span>
+                        </div>
+                        <div class="slider-wrapper">
+                            <div class="slider-track">
+                                <div id="slider-fill" class="slider-fill"></div>
+                            </div>
+                            <input
+                                type="range"
+                                id="year-from"
+                                class="range-input"
+                                min="0"
+                                max="0"
+                                value="0"
+                            />
+                            <input
+                                type="range"
+                                id="year-to"
+                                class="range-input"
+                                min="0"
+                                max="0"
+                                value="0"
+                            />
+                        </div>
+                        <label class="unknown-label">
+                            <input type="checkbox" id="include-unknown" />
+                            Include companies with unknown founding year
+                        </label>
+                    </div>
+                    <span id="slider-error" class="error-inline" hidden></span>
+                </div>
+
+                <div class="field">
+                    <label>Format</label>
+                    <div class="format-row">
+                        <label class="radio-label">
+                            <input
+                                type="radio"
+                                name="format"
+                                value="csv"
+                                checked
+                            />
+                            CSV
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="format" value="excel" />
+                            Excel
+                        </label>
+                    </div>
+                </div>
+
+                <div id="progress-wrap" class="progress-wrap" hidden>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <span id="progress-label" class="progress-label"
+                        >Starting…</span
+                    >
+                </div>
+
+                <div id="error-msg" class="error-msg" hidden></div>
+
+                <button id="download-btn" disabled>Download</button>
+            </div>
+        </main>
+
+        <script>
+            const sliderLoading = document.getElementById("slider-loading");
+            const sliderSection = document.getElementById("slider-section");
+            const sliderError = document.getElementById("slider-error");
+            const yearFrom = document.getElementById("year-from");
+            const yearTo = document.getElementById("year-to");
+            const sliderFill = document.getElementById("slider-fill");
+            const labelFrom = document.getElementById("label-from");
+            const labelTo = document.getElementById("label-to");
+            const downloadBtn = document.getElementById("download-btn");
+            const errorMsg = document.getElementById("error-msg");
+            const progressWrap = document.getElementById("progress-wrap");
+            const progressFill = document.getElementById("progress-fill");
+            const progressLabel = document.getElementById("progress-label");
+
+            function setProgress(pct, msg) {
+                progressFill.style.width = pct + "%";
+                progressLabel.textContent = `${msg} (${pct}%)`;
+            }
+
+            function resetUI() {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = "Download";
+                progressWrap.hidden = true;
+                progressFill.style.width = "0%";
+            }
+
+            // Last updated indicator
+            const lastUpdatedEl = document.getElementById("last-updated");
+            fetch("/status")
+                .then((r) => r.json())
+                .then((data) => {
+                    if (!data.last_run_utc) return;
+                    const date = new Date(data.last_run_utc);
+                    const highlighted = date.toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    });
+                    lastUpdatedEl.innerHTML = `Last updated: <span class="date-highlight">${highlighted}</span>`;
+                    lastUpdatedEl.hidden = false;
+                })
+                .catch(() => {}); // non-critical, fail silently
+
+            let allYears = []; // numeric years only, sorted
+
+            function updateSlider() {
+                const lo = Math.min(+yearFrom.value, +yearTo.value);
+                const hi = Math.max(+yearFrom.value, +yearTo.value);
+                const max = allYears.length - 1;
+                if (max <= 0) return;
+
+                sliderFill.style.left = (lo / max) * 100 + "%";
+                sliderFill.style.width = ((hi - lo) / max) * 100 + "%";
+
+                labelFrom.textContent = allYears[lo] ?? "—";
+                labelTo.textContent = allYears[hi] ?? "—";
+
+                // keep z-index so the lower thumb stays grabbable when both are at max
+                yearFrom.style.zIndex = lo === max ? 5 : 3;
+            }
+
+            yearFrom.addEventListener("input", () => {
+                if (+yearFrom.value > +yearTo.value)
+                    yearTo.value = yearFrom.value;
+                updateSlider();
+            });
+            yearTo.addEventListener("input", () => {
+                if (+yearTo.value < +yearFrom.value)
+                    yearFrom.value = yearTo.value;
+                updateSlider();
+            });
+
+            // Load available years from API
+            fetch("/virksomhed/years")
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data.error) throw new Error(data.error);
+
+                    allYears = data.years.filter((y) => y !== "unknown").sort();
+                    const max = allYears.length - 1;
+
+                    yearFrom.max = yearTo.max = max;
+                    yearFrom.value = 0;
+                    yearTo.value = max;
+
+                    sliderLoading.hidden = true;
+                    sliderSection.hidden = false;
+
+                    const hasUnknown = data.years.includes("unknown");
+                    document
+                        .getElementById("include-unknown")
+                        .closest("label").hidden = !hasUnknown;
+
+                    updateSlider();
+                    downloadBtn.disabled = false;
+                })
+                .catch((err) => {
+                    sliderLoading.hidden = true;
+                    sliderError.textContent =
+                        err.message || "Could not load years.";
+                    sliderError.hidden = false;
+                });
+
+            // Download via SSE for live progress
+            downloadBtn.addEventListener("click", () => {
+                errorMsg.hidden = true;
+
+                const table = document.getElementById("table-select").value;
+                const format = document.querySelector(
+                    "input[name=format]:checked",
+                ).value;
+                const lo = Math.min(+yearFrom.value, +yearTo.value);
+                const hi = Math.max(+yearFrom.value, +yearTo.value);
+                const incUnknown =
+                    document.getElementById("include-unknown").checked;
+
+                const selectedYears = allYears.slice(lo, hi + 1);
+                if (incUnknown) selectedYears.push("unknown");
+
+                const isAll =
+                    lo === 0 && hi === allYears.length - 1 && incUnknown;
+                const yearsParam = isAll ? "all" : selectedYears.join(",");
+                const url = `/download/stream?table=${table}&years=${yearsParam}&format=${format}`;
+
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = "Preparing…";
+                progressWrap.hidden = false;
+                setProgress(0, "Starting");
+
+                const evtSource = new EventSource(url);
+
+                evtSource.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+
+                    if (data.error) {
+                        evtSource.close();
+                        errorMsg.textContent = data.error;
+                        errorMsg.hidden = false;
+                        resetUI();
+                        return;
+                    }
+
+                    setProgress(data.pct, data.msg || "");
+
+                    if (data.done) {
+                        evtSource.close();
+                        window.location.href = `/download/file/${data.token}`;
+                        resetUI();
+                    }
+                };
+
+                evtSource.onerror = () => {
+                    evtSource.close();
+                    errorMsg.textContent = "Connection lost. Please try again.";
+                    errorMsg.hidden = false;
+                    resetUI();
+                };
+            });
+        </script>
+    </body>
+</html>

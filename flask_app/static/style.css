@@ -1,0 +1,297 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --blue: #003e7e;
+  --blue-light: #e8f0fb;
+  --text: #1a1a1a;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --bg: #f5f6f8;
+  --white: #ffffff;
+  --red: #c0392b;
+  --radius: 8px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Header */
+header {
+  background: var(--blue);
+  color: var(--white);
+  padding: 28px 32px;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+header p {
+  margin-top: 4px;
+  font-size: 0.875rem;
+  opacity: 0.75;
+}
+
+.last-updated {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-highlight {
+  color: #FFBF00;
+  opacity: 1;
+}
+
+/* Main */
+main {
+  max-width: 680px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+select {
+  appearance: none;
+  background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 36px 9px 12px;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+  max-width: 320px;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-light);
+}
+
+/* Range slider */
+.range-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-year {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--blue);
+  min-width: 2.8rem;
+}
+
+.range-sep {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.slider-wrapper {
+  position: relative;
+  height: 36px;
+  padding: 0 9px; /* half thumb width so thumbs don't overflow */
+}
+
+.slider-track {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  right: 9px;
+  transform: translateY(-50%);
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.slider-fill {
+  position: absolute;
+  height: 100%;
+  background: var(--blue);
+  border-radius: 2px;
+}
+
+.range-input {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 36px;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.range-input::-webkit-slider-thumb {
+  appearance: none;
+  pointer-events: all;
+  width: 18px;
+  height: 18px;
+  background: var(--blue);
+  border-radius: 50%;
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+
+.range-input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  box-shadow: 0 0 0 4px var(--blue-light);
+}
+
+.range-input::-moz-range-thumb {
+  pointer-events: all;
+  width: 18px;
+  height: 18px;
+  background: var(--blue);
+  border-radius: 50%;
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+
+.range-input::-webkit-slider-runnable-track { background: transparent; }
+.range-input::-moz-range-track             { background: transparent; }
+
+.unknown-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.unknown-label input {
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+/* Misc */
+.loading {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.error-inline {
+  font-size: 0.875rem;
+  color: var(--red);
+}
+
+/* Format radios */
+.format-row {
+  display: flex;
+  gap: 20px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.radio-label input[type=radio] {
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+/* Progress bar */
+.progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.35s ease;
+}
+
+.progress-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Error message */
+.error-msg {
+  font-size: 0.875rem;
+  color: var(--red);
+  background: #fdf2f2;
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+/* Button */
+button {
+  align-self: flex-start;
+  background: var(--blue);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 28px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
