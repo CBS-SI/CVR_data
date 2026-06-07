@@ -1,8 +1,8 @@
 *.json
 *.parquet
-.env
-/test
 *.pyc
 *.code-workspace
 .ipynb_checkpoints
-.notes.md
+notes.md
+.env
+/test
