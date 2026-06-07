@@ -129,7 +129,7 @@
 
             // Last updated indicator
             const lastUpdatedEl = document.getElementById("last-updated");
-            fetch("/status")
+            fetch("/last_update")
                 .then((r) => r.json())
                 .then((data) => {
                     if (!data.last_run_utc) return;
