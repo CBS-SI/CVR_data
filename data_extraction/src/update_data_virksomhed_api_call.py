@@ -26,7 +26,11 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 
-UTILS_FOLDER = os.getenv("UTILS_FOLDER")
+# utils/ lives at the project root, two levels up from this file (src/).
+UTILS_FOLDER = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "utils",
+)
 sys.path.insert(1, UTILS_FOLDER)
 
 import utils_virksomhed as utils
