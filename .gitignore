@@ -2,7 +2,7 @@
 *.parquet
 *.pyc
 *.code-workspace
+*.env
 .ipynb_checkpoints
 notes.md
-.env
 /test
