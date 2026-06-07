@@ -1,0 +1,17 @@
+name: cvr
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.13
+  - boto3=1.43.23
+  - duckdb=1.5.3
+  - fastparquet=2026.3.0
+  - funcy=2.0
+  - httpx=0.28.1
+  - numpy=2.4.6
+  - pandas=3.0.3
+  - pyarrow=20.0.0
+  - python-dotenv=1.2.1
+  - requests=2.34.2
+  - jupyter==1.1.1
+  - ipykernel
