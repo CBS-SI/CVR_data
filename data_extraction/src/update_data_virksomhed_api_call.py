@@ -13,20 +13,22 @@ _state.json holds a per-founding-year "last update" timestamp (watermark). each 
 resumes from its own watermark, so updating one year never advances another and can
 never leave a gap.
 
-Args:
-
-- by default every founding year on disk is refreshed.
-- --start-year and --end-year to refresh only those year set.
-- --year-unknown to refresh only the companies with no founding year date.
-- --since to override the start date for the selected years.
-- --buffer-days to change the default time lookback buffer.
-
 Examples:
+    # by default every founding year on disk is refreshed.
     python update_data.py
-    python update_data.py --since 2026-06-01
-    python update_data.py --buffer-days 2
-    python update_data.py --start-year 1980 --end-year 1980
+
+    # --start-year and --end-year to refresh only those year set.
+    python update_data.py --start-year 1980 --end-year 2005
+
+    # --year-unknown to refresh only the companies with no founding year date.
     python update_data.py --year-unknown
+
+    # --since to override the start date for the selected years, use with care
+    python update_data.py --since 2026-06-01
+
+    # --buffer-days to change the default time lookback buffer.
+    python update_data.py --buffer-days 2
+
 """
 
 import os
