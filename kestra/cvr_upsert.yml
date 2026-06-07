@@ -1,0 +1,39 @@
+id: cvr_virksomhed_upsert
+namespace: company.team
+
+variables:
+  github_repo_url: "https://github.com/CBS-SI/CVR_data"
+  s3_endpoint_url: "https://s3.4208055.xyz"
+  s3_bucket: "cvr-data"
+  s3_virksomhed_prefix: "virksomhed"
+  s3_region: "dc1"
+
+tasks:
+  - id: update_cvr_data
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "{{ vars.github_repo_url }}"
+        branch: main
+        depth: 1
+
+      - id: run_update_script
+        type: io.kestra.plugin.scripts.python.Commands
+        env:
+          S3_ENDPOINT_URL: "{{ vars.s3_endpoint_url }}"
+          S3_BUCKET: "{{ vars.s3_bucket }}"
+          S3_VIRKSOMHED_PREFIX: "{{ vars.s3_virksomhed_prefix }}"
+          S3_REGION: "{{ vars.s3_region }}"
+          VIRK_USERNAME: "{{ secret('VIRK_USERNAME') }}"
+          VIRK_PASSWORD: "{{ secret('VIRK_PASSWORD') }}"
+          AWS_ACCESS_KEY_ID: "{{ secret('AWS_ACCESS_KEY_ID') }}"
+          AWS_ACCESS_KEY: "{{ secret('AWS_ACCESS_KEY') }}"
+        dependencies:
+          - dotenv
+          - requests
+          - pandas
+          - pyarrow==20.0.0
+          - boto3
+        commands:
+          - python data_extraction/src/update_data_virksomhed_s3_api_call.py
