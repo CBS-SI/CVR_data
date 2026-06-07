@@ -28,7 +28,6 @@ Examples:
 
     # --buffer-days to change the default time lookback buffer.
     python update_data.py --buffer-days 2
-
 """
 
 import os
