@@ -73,7 +73,7 @@ def run(years, folder, overwrite):
     # exist, so a single deleted table file triggers a re-fetch of that year.
     tables = ["main"] + utils.TABLES
 
-
+    written_years = []
     for year in years:
         files_present = all(
             os.path.exists(f"{folder}/{table}_{year}.parquet") for table in tables
@@ -98,9 +98,13 @@ def run(years, folder, overwrite):
                 utils.build_main(all_hits).to_parquet(f"{folder}/main_{year}.parquet", index=False)
             else:
                 utils.build_table(all_hits, table).to_parquet(f"{folder}/{table}_{year}.parquet", index=False)
+        written_years.append(year)
 
-    utils.write_last_run(folder, timestamp)
-    state_path = os.path.relpath(os.path.join(folder, "_state.json"))
+    # Stamp the years written with this current run start time, keeps the timestamps of any years left untouched.
+    year_ts = utils.read_year_timestamps(folder)
+    for year in written_years:
+        year_ts[year] = timestamp
+    utils.write_year_timestamps(folder, year_ts)
     human_time = datetime.fromisoformat(timestamp).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     print(f"-> Download complete. Parquet files saved in {folder}.")
