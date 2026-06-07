@@ -17,7 +17,7 @@ The script downloads the **complete dataset** of all Danish companies with their
 
 It works **one founding year at a time** to avoid memory spikes, and writes the 20 tables (see below) for each year. Companies with no founding date (`stiftelsesDato`) are written to an `unknown` partition (e.g. `main_unknown.parquet`).
 
-The run is **resumable**: a year is considered done only when all 20 of its table files exist on disk, so years already downloaded are skipped unless `--overwrite` is passed. On success it writes the run timestamp to `_state.json`, which the incremental update script (section 2) uses as its starting point.
+The run is **resumable**: a year is considered done only when all 20 of its table files exist on disk, so years already downloaded are skipped unless `--overwrite` is passed. For every year it (re)writes, it records that year's timestamp in `_state.json` (a per-founding-year map), which the incremental update script (section 2) uses as the per-year starting point.
 
 Script usage:
 
@@ -84,17 +84,25 @@ Fields available at [virksomhed_data.md](virksomhed_data.md)
 - Endpoint 2: `http://distribution.virk.dk/_search/scroll`
 - Data files: the same `<table>_<year>.parquet` files produced by the historical backfill
 
-This script performs an **incremental update** rather than a full download. It fetches only the companies whose record changed since the last successful run (using the `sidstOpdateret` field) and **upserts** them into the matching founding-year files: existing rows for those companies are dropped and the fresh rows appended, so only the year files that actually changed are rewritten.
+This script performs an **incremental update** rather than a full download. It **refreshes the founding-year partitions already on disk**: for each year it fetches only the companies whose record changed since *that year* was last updated (using the `sidstOpdateret` field) and **upserts** them into the matching year files — existing rows for those companies are dropped and the fresh rows appended, so only the year files that actually changed are rewritten. New founding years are never created here; add them with the historical backfill (section 1).
 
-The starting point ("last run") is read from `_state.json`, written by the historical backfill and refreshed after every successful update. A small **lookback buffer** (default 1 day) re-scans a little overlap so a late-landing edit is never missed. Run the historical backfill (section 1) at least once before using this script.
+The starting point is a **per-founding-year timestamp** stored in `_state.json` (`{"years": {"1980": "...", "unknown": "...", ...}}`). Each year resumes from its own watermark, so updating one year never advances another and can never leave a gap — you can safely maintain just a subset of years. A legacy single-watermark `_state.json` (`{"last_run_utc": "..."}`) is migrated automatically by seeding every year already on disk. A small **lookback buffer** (default 1 day) re-scans a little overlap so a late-landing edit is never missed. Run the historical backfill (section 1) at least once before using this script.
+
+By default every founding year on disk is refreshed. Use `--start-year`/`--end-year` to refresh only a range of founding years, or `--year-unknown` for only the companies with no founding date. The server-side query is bounded to the selected years, so a narrowed run fetches only those companies.
 
 Script usage:
 
 ```py
-# Incremental update from the last run recorded in _state.json
+# Incremental update of every founding year on disk, each from its own watermark
 python update_data_virksomhed_api_call.py
 
-# Override the start date instead of using _state.json
+# Refresh only a single founding year (or a range)
+python update_data_virksomhed_api_call.py --start-year 1980 --end-year 1980
+
+# Refresh only the companies with no founding date
+python update_data_virksomhed_api_call.py --year-unknown
+
+# Override the start date for the selected years instead of using _state.json
 python update_data_virksomhed_api_call.py --since 2026-06-01
 
 # Widen the lookback overlap to absorb more replication lag
@@ -106,7 +114,10 @@ python update_data_virksomhed_api_call.py --folder /path/to/output
 
 Options:
 
-- `--since`: Override the start date (`YYYY-MM-DD` or ISO). Default: last run from `_state.json`.
+- `--start-year`: Only refresh founding years in/after this year.
+- `--end-year`: Only refresh founding years in/before this year (inclusive).
+- `--year-unknown`: Only refresh the `unknown` partition (companies with no founding date). Cannot be combined with `--start-year`/`--end-year`.
+- `--since`: Override the start date (`YYYY-MM-DD` or ISO) for the selected years. Default: each year's watermark from `_state.json`.
 - `--buffer-days`: Lookback overlap in days to absorb replication lag (default `1`).
 - `--folder`: Output folder. Defaults to `RAW_VIRKSOMHED_FOLDER_PATH` from `.env`.
 
@@ -116,19 +127,25 @@ Options:
 - Storage layer: `utils/utils_virksomhed_s3.py`
 - Objects: `<prefix>/<table>_<year>.parquet` and `<prefix>/_state.json` in the bucket
 
-Same incremental-upsert logic as section 2, but it reads and writes the parquet files and `_state.json` directly to an S3-compatible bucket instead of local path (e.g. I use [Garage](https://garagehq.deuxfleurs.fr/)).
+Same incremental-upsert logic as section 2, including the per-founding-year watermarks in `_state.json`, but it reads and writes the parquet files and `_state.json` directly to an S3-compatible bucket instead of local path (e.g. I use [Garage](https://garagehq.deuxfleurs.fr/)).
 
 You will need to set up the S3 storage config in `.env` (see `.env.example`).
 
-I recommend uploading the historical data and `_state.json` to the bucket first, using `aws s3 cp` or a similar tool.
+I recommend uploading the historical data and `_state.json` to the bucket first, using `aws s3 cp` or a similar tool. A legacy single-watermark `_state.json` is migrated automatically by seeding every year already in the bucket.
 
 Script usage:
 
 ```py
-# Incremental update from the last run recorded in <prefix>/_state.json
+# Incremental update of every founding year in the bucket, each from its own watermark
 python update_data_virksomhed_s3_api_call.py
 
-# Override the start date
+# Refresh only a single founding year (or a range)
+python update_data_virksomhed_s3_api_call.py --start-year 1980 --end-year 1980
+
+# Refresh only the companies with no founding date
+python update_data_virksomhed_s3_api_call.py --year-unknown
+
+# Override the start date for the selected years
 python update_data_virksomhed_s3_api_call.py --since 2026-06-01
 
 # Widen the lookback overlap
@@ -142,7 +159,9 @@ Options:
 
 - `--bucket`: S3 bucket. Defaults to `S3_BUCKET` from `.env`.
 - `--prefix`: Key prefix for the data. Defaults to `VIRKSOMHED_S3_PREFIX` from `.env`.
-- `--since`: Override the start date (`YYYY-MM-DD` or ISO). Default: last run from `<prefix>/_state.json`.
+- `--start-year` / `--end-year`: Only refresh founding years in this range (inclusive).
+- `--year-unknown`: Only refresh the `unknown` partition. Cannot be combined with `--start-year`/`--end-year`.
+- `--since`: Override the start date (`YYYY-MM-DD` or ISO) for the selected years. Default: each year's watermark from `<prefix>/_state.json`.
 - `--buffer-days`: Lookback overlap in days to absorb replication lag (default `1`).
 
 ## 3. Financial Statements (`offentliggoerelser`)
