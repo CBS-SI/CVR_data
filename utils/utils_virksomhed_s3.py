@@ -109,9 +109,26 @@ def _write_parquet(client, bucket, key, df):
     client.put_object(Bucket=bucket, Key=key, Body=buf.getvalue())
 
 
-# Last successful run timestamp (mirrors utils.read_last_run / write_last_run)
-def read_last_run(client, bucket, prefix):
-    """Return the stored last-run UTC timestamp from <prefix>/_state.json, or None."""
+# Founding-year partitions and their last update timestamp
+# (mirrors utils.existing_years / read_year_timestamps / write_year_timestamps).
+def existing_years(client, bucket, prefix):
+    """Founding-year partitions in the bucket, taken from the main_<year> objects."""
+    paginator = client.get_paginator("list_objects_v2")
+    years = []
+    for page in paginator.paginate(Bucket=bucket, Prefix=_key(prefix, "main_")):
+        for obj in page.get("Contents", []):
+            base = obj["Key"].rsplit("/", 1)[-1]
+            if base.startswith("main_") and base.endswith(".parquet"):
+                years.append(base[len("main_"):-len(".parquet")])
+    return years
+
+
+def read_year_timestamps(client, bucket, prefix):
+    """Return {founding_year: last_update_iso} from <prefix>/_state.json.
+
+    A legacy {"last_run_utc": ...} object is migrated by seeding every year
+    partition in the bucket with that timestamp. Returns {} when there is no state.
+    """
     from botocore.exceptions import ClientError
 
     key = _key(prefix, _STATE_KEY)
@@ -119,15 +136,25 @@ def read_last_run(client, bucket, prefix):
         obj = client.get_object(Bucket=bucket, Key=key)
     except ClientError as exc:
         if _is_not_found(exc):
-            return None
+            return {}
         raise
-    return json.loads(obj["Body"].read()).get("last_run_utc")
+    state = json.loads(obj["Body"].read())
+    years = state.get("years")
+    if years:
+        return dict(years)
+    legacy = state.get("last_run_utc")
+    if legacy is None:
+        return {}
+    return {year: legacy for year in existing_years(client, bucket, prefix)}
 
 
-def write_last_run(client, bucket, prefix, when_iso):
-    """Persist the next-run start timestamp to <prefix>/_state.json."""
+def write_year_timestamps(client, bucket, prefix, year_ts):
+    """Persist per-year update timestamps, plus a derived last_run_utc (the max)."""
     key = _key(prefix, _STATE_KEY)
-    body = json.dumps({"last_run_utc": when_iso}).encode("utf-8")
+    state = {"years": year_ts}
+    if year_ts:
+        state["last_run_utc"] = max(year_ts.values())   # for a quick global glance
+    body = json.dumps(state, indent=2).encode("utf-8")
     client.put_object(Bucket=bucket, Key=key, Body=body)
 
 

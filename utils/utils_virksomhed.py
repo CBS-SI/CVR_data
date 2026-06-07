@@ -10,6 +10,7 @@ founding date go in the "unknown" partition.
 """
 
 import os
+import glob
 import json
 import requests
 import pandas as pd
@@ -41,17 +42,37 @@ TABLES = [
 
 # Queries
 # Note: size 3000 is the max allowed by the API.
-def query_updated_since(since_iso, size=3000):
-    """Companies whose record changed on/after the given date (incremental)."""
+def query_updated_since(since_iso, start_year=None, end_year=None,
+                        include_unknown=False, size=3000):
+    """Companies whose record changed on/after since_iso (incremental).
+
+       It uses start_year/end_year set or "unknown" founding year (given by stiftelsesDato).
+    With neither, every founding year matches get queried.
+    """
+    field = "Vrvirksomhed.virksomhedMetadata.stiftelsesDato"
+    must = [{"range": {"Vrvirksomhed.sidstOpdateret": {"gte": since_iso}}}]
+
+    should = []
+    if start_year is not None or end_year is not None:
+        bounds = {}
+        if start_year is not None:
+            bounds["gte"] = f"{start_year}-01-01"
+        if end_year is not None:
+            bounds["lte"] = f"{end_year}-12-31"
+        should.append({"range": {field: bounds}})
+    if include_unknown:
+        should.append({"bool": {"must_not": {"exists": {"field": field}}}})
+
+    bool_query = {"must": must}
+    if should:                                # restrict to the founding-year scope
+        bool_query["should"] = should
+        bool_query["minimum_should_match"] = 1
+
     return {
         "size": size,
         "sort": ["_doc"],
         "track_total_hits": True,
-        "query": {
-            "range": {
-                "Vrvirksomhed.sidstOpdateret": {"gte": since_iso}
-            }
-        },
+        "query": {"bool": bool_query},
     }
 
 
@@ -156,6 +177,25 @@ def founding_year(hit):
     return "unknown"
 
 
+def select_years(years, start_year=None, end_year=None, year_unknown=False):
+    """Filter founding-year keys down to a requested scope.
+
+    `years` is an iterable of "YYYY" strings and/or the "unknown" partition.
+    Mirrors the get_historical interface:
+      - year_unknown=True        -> only the "unknown" partition.
+      - start_year/end_year set  -> only those founding years (inclusive),
+                                    excluding "unknown".
+      - nothing set              -> every year, including "unknown".
+    """
+    if year_unknown:
+        return [y for y in years if y == "unknown"]
+    if start_year is None and end_year is None:
+        return list(years)
+    lo = start_year if start_year is not None else float("-inf")
+    hi = end_year if end_year is not None else float("inf")
+    return [y for y in years if y != "unknown" and lo <= int(y) <= hi]
+
+
 # Note: minimal upserts avoids gaps.
 def upsert_year(folder, year, hits_for_year):
     """
@@ -180,19 +220,43 @@ def upsert_year(folder, year, hits_for_year):
         combined.to_parquet(path, index=False)
 
 
-# Last successful run timestamp
-def read_last_run(folder):
-    """Return the stored last-run UTC timestamp, or None if never run."""
+# Founding-year partitions and their last successful update timestamp.
+def existing_years(folder):
+    """Founding-year partitions present on disk, taken from the main_<year> files."""
+    years = []
+    for path in glob.glob(os.path.join(folder, "main_*.parquet")):
+        base = os.path.basename(path)
+        years.append(base[len("main_"):-len(".parquet")])
+    return years
+
+
+def read_year_timestamps(folder):
+    """Return {founding_year: last_update_iso} from _state.json.
+
+    A legacy {"last_run_utc": ...} file (single global watermark) is migrated by
+    seeding every on-disk year partition with that timestamp. Returns {} when
+    there is no state yet.
+    """
     path = os.path.join(folder, "_state.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f).get("last_run_utc")
-    return None
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        state = json.load(f)
+    years = state.get("years")
+    if years:
+        return dict(years)
+    legacy = state.get("last_run_utc")
+    if legacy is None:
+        return {}
+    return {year: legacy for year in existing_years(folder)}
 
 
-def write_last_run(folder, when_iso):
-    """Persist the timestamp the next incremental update should start from."""
+def write_year_timestamps(folder, year_ts):
+    """Persist per-year update timestamps, plus a derived last_run_utc (the max)."""
     os.makedirs(folder, exist_ok=True)
-    path = path = os.path.join(folder, "_state.json")
+    path = os.path.join(folder, "_state.json")
+    state = {"years": year_ts}
+    if year_ts:
+        state["last_run_utc"] = max(year_ts.values())   # for a quick global glance
     with open(path, "w") as f:
-        json.dump({"last_run_utc": when_iso}, f)
+        json.dump(state, f, indent=2)

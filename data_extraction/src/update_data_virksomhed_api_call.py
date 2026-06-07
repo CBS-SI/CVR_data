@@ -1,21 +1,32 @@
 """
 incremental update of CVR virksomhed data.
 
-fetches only companies whose record changed since the last run and upserts them into the year files: old rows are dropped and new rows are appended.
-
-therefore only yearly parquet files that actually changed get rewritten.
-
-last run date comes from _state.json, written by get_historical_data.py and by
-each successful update.
+it refreshes the founding-year partitions already on disk: for each year it fetches
+only the companies whose record changed since that year was last updated and upserts
+them into the year files (old rows dropped, fresh rows appended), so only the files
+that actually changed get rewritten. new years are never created here, only by
+get_historical_data.py.
 
 it adds a safety lookback buffer of 1 day so lags in the client or the server do not create gaps in the data.
 
-it can also be run with a custom start date using the --since option or change the buffer size using the --buffer-days option.
+_state.json holds a per-founding-year "last update" timestamp (watermark). each year
+resumes from its own watermark, so updating one year never advances another and can
+never leave a gap.
+
+Args:
+
+- by default every founding year on disk is refreshed.
+- --start-year and --end-year to refresh only those year set.
+- --year-unknown to refresh only the companies with no founding year date.
+- --since to override the start date for the selected years.
+- --buffer-days to change the default time lookback buffer.
 
 Examples:
     python update_data.py
     python update_data.py --since 2026-06-01
     python update_data.py --buffer-days 2
+    python update_data.py --start-year 1980 --end-year 1980
+    python update_data.py --year-unknown
 """
 
 import os
@@ -36,46 +47,65 @@ sys.path.insert(1, UTILS_FOLDER)
 import utils_virksomhed as utils
 
 
-def run(folder, since, buffer_days):
-    last_run = since or utils.read_last_run(folder)
-    if last_run is None:
+def run(folder, since, buffer_days, start_year, end_year, year_unknown):
+    year_ts = utils.read_year_timestamps(folder)
+    if not year_ts:
         raise SystemExit(
             "No previous run found. Run get_historical_data.py first, "
             "or pass --since YYYY-MM-DD."
         )
 
-    # Apply the lookback buffer so we re-scan a little overlap and never miss
-    # an edit that landed late. Date granularity is enough for sidstOpdateret.
-    since_dt = datetime.fromisoformat(last_run) - timedelta(days=buffer_days)
-    since_iso = since_dt.date().isoformat()
-    print(f"Fetching companies updated since {since_iso} (buffer {buffer_days}d)")
+    # The existing founding-year in scope for this run. Update only refreshes years already downloaded. New years come from get_historical().
+    selected = utils.select_years(sorted(year_ts), start_year, end_year, year_unknown)
+    if not selected:
+        raise SystemExit("No matching founding years on disk for the requested scope.")
 
-    # Record the start time now and persist it only after a successful upsert.
+    # Fetch from the oldest watermark among the selected years minus the lookback buffer.
+    if since:
+        since_dt = datetime.fromisoformat(since)
+    else:
+        since_dt = min(datetime.fromisoformat(year_ts[y]) for y in selected)
+    since_dt -= timedelta(days=buffer_days)
+    since_iso = since_dt.date().isoformat()
+    print(f"Updating {len(selected)} founding year(s) changed since {since_iso} "
+          f"(buffer {buffer_days}d)")
+
+    # Record the start time now and persist it only after a successful upsert
     run_started = datetime.now(timezone.utc).isoformat()
 
-    query = utils.query_updated_since(since_iso)
+    # Only scan selected founding-year set
+    numeric = [int(y) for y in selected if y != "unknown"]
+    query = utils.query_updated_since(
+        since_iso,
+        start_year=min(numeric) if numeric else None,
+        end_year=max(numeric) if numeric else None,
+        include_unknown="unknown" in selected,
+    )
     all_hits = utils.fetch_query(query)
     print(f"{len(all_hits)} changed companies")
 
-    # this normally never happen, thats why the print message.
-    if not all_hits:
-        utils.write_last_run(folder, run_started)
-        print("This is weird...Nothing to update.")
-        return
-
-    # Go one by one year upserting the files
+    # Group by founding year, keeping only the selected, already-existing downloads
+    selected_set = set(selected)
     hits_by_year = {}
     for hit in all_hits:
         year = utils.founding_year(hit)
-        hits_by_year.setdefault(year, []).append(hit)
+        if year in selected_set:
+            hits_by_year.setdefault(year, []).append(hit)
+
+    skipped = len(all_hits) - sum(len(v) for v in hits_by_year.values())
+    if skipped:
+        print(f"Skipping {skipped} changed companies outside the selected partitions")
 
     for year in sorted(hits_by_year):
         hits = hits_by_year[year]
         print(f"Upserting year {year}: {len(hits)} companies")
         utils.upsert_year(folder, year, hits)
 
-    utils.write_last_run(folder, run_started)
-    print(f"Update complete. Next run will start from {run_started}")
+    # print for every year, not only changed
+    for year in selected:
+        year_ts[year] = run_started
+    utils.write_year_timestamps(folder, year_ts)
+    print(f"Update complete. {len(selected)} year(s) now current as of {run_started}")
 
 
 if __name__ == "__main__":
@@ -88,9 +118,20 @@ if __name__ == "__main__":
                              "Default: last run from _state.json.")
     parser.add_argument("--buffer-days", type=int, default=1,
                         help="Lookback overlap to absorb replication lag (default 1).")
+    parser.add_argument("--start-year", type=int, default=None,
+                        help="Only update companies founded in/after this year.")
+    parser.add_argument("--end-year", type=int, default=None,
+                        help="Only update companies founded in/before this year (inclusive).")
+    parser.add_argument("--year-unknown", action="store_true",
+                        help="Only update companies with no founding date. "
+                             "Cannot be combined with a year range.")
     args = parser.parse_args()
 
     if not args.folder:
         raise SystemExit("No data folder. Set RAW_VIRKSOMHED_FOLDER_PATH in .env or pass --folder.")
 
-    run(args.folder, args.since, args.buffer_days)
+    if args.year_unknown and (args.start_year is not None or args.end_year is not None):
+        parser.error("--year-unknown cannot be combined with --start-year/--end-year.")
+
+    run(args.folder, args.since, args.buffer_days,
+        args.start_year, args.end_year, args.year_unknown)
