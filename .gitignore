@@ -5,4 +5,4 @@
 *.env
 .ipynb_checkpoints
 notes.md
-/test
+/notebook_tests
